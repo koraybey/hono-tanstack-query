@@ -14,7 +14,7 @@ import {
   type ErrorStatusCode,
   type QueryKey,
 } from "./types";
-import { getQueryKey } from "./utils";
+import { createEndpointFetcher, getQueryKey } from "./utils";
 
 export const useQuery = <
   E extends Endpoint,
@@ -31,31 +31,12 @@ export const useQuery = <
     UseQueryOptions<TResponse, TError, TData, QueryKey<E, M, P>>,
     "queryKey" | "queryFn"
   >,
-): UseQueryResult<TData, TError> => {
-  const endpointFn = endpoint[method] as unknown as (
-    params: unknown,
-  ) => Promise<Response>;
-
-  return useRQQuery({
-    queryKey: getQueryKey(endpoint, method, params),
-    queryFn: async (): Promise<TResponse> => {
-      const res = await endpointFn(params);
-      if (res.status >= 200 && res.status < 300) {
-        return (await res.json()) as TResponse;
-      }
-      const errorData = (await res.json()) as TError;
-      const error = Object.assign(
-        new Error(`Request failed with status ${String(res.status)}`),
-        {
-          status: res.status,
-          data: errorData,
-        },
-      ) as Error & {
-        status: number;
-        data: TError;
-      };
-      throw error;
-    },
+): UseQueryResult<TData, TError> =>
+  useRQQuery({
+    queryKey: getQueryKey(endpoint, method, params) as QueryKey<E, M, P>,
+    queryFn: async () =>
+      createEndpointFetcher<TResponse, P>(
+        endpoint[method] as (params: P) => Promise<Response>,
+      )(params),
     ...options,
   });
-};

@@ -13,7 +13,7 @@ import {
   type EndpointResponseType,
   type ErrorStatusCode,
 } from "./types";
-import { getQueryKey } from "./utils";
+import { createEndpointFetcher, getQueryKey } from "./utils";
 
 export const useMutation = <
   E extends Endpoint,
@@ -29,31 +29,11 @@ export const useMutation = <
     UseMutationOptions<TResponse, TError, TVariables, TContext>,
     "mutationFn" | "mutationKey"
   >,
-): UseMutationResult<TResponse, TError, TVariables, TContext> => {
-  const endpointFn = endpoint[method] as unknown as (
-    params: TVariables,
-  ) => Promise<Response>;
-
-  return useRQMutation({
-    mutationKey: getQueryKey(endpoint, method, {} as never),
-    mutationFn: async (variables: TVariables): Promise<TResponse> => {
-      const res = await endpointFn(variables);
-      if (res.status >= 200 && res.status < 300) {
-        return (await res.json()) as TResponse;
-      }
-      const errorData = (await res.json()) as TError;
-      const error = Object.assign(
-        new Error(`Request failed with status ${String(res.status)}`),
-        {
-          status: res.status,
-          data: errorData,
-        },
-      ) as Error & {
-        status: number;
-        data: TError;
-      };
-      throw error;
-    },
+): UseMutationResult<TResponse, TError, TVariables, TContext> =>
+  useRQMutation({
+    mutationKey: getQueryKey(endpoint, method),
+    mutationFn: createEndpointFetcher<TResponse, TVariables>(
+      endpoint[method] as (params: TVariables) => Promise<Response>,
+    ),
     ...options,
   });
-};
