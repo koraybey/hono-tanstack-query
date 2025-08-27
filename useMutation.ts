@@ -15,7 +15,7 @@ import {
 } from "./types";
 import { getQueryKey } from "./utils";
 
-const mutationOptions = <
+export const useMutation = <
   E extends Endpoint,
   M extends AvailableMethodKeys<E>,
   TResponse = EndpointResponseType<E, M, SuccessStatusCode>,
@@ -29,13 +29,14 @@ const mutationOptions = <
     UseMutationOptions<TResponse, TError, TVariables, TContext>,
     "mutationFn" | "mutationKey"
   >,
-): UseMutationOptions<TResponse, TError, TVariables, TContext> => {
+): UseMutationResult<TResponse, TError, TVariables, TContext> => {
   const endpointFn = endpoint[method] as unknown as (
     params: TVariables,
   ) => Promise<Response>;
-  return {
+
+  return useRQMutation({
     mutationKey: getQueryKey(endpoint, method, {} as never),
-    mutationFn: async (variables: TVariables) => {
+    mutationFn: async (variables: TVariables): Promise<TResponse> => {
       const res = await endpointFn(variables);
       if (res.status >= 200 && res.status < 300) {
         return (await res.json()) as TResponse;
@@ -54,28 +55,5 @@ const mutationOptions = <
       throw error;
     },
     ...options,
-  };
+  });
 };
-
-export const useMutation = <
-  E extends Endpoint,
-  M extends AvailableMethodKeys<E>,
-  TResponse = EndpointResponseType<E, M, SuccessStatusCode>,
-  TError = EndpointResponseType<E, M, ErrorStatusCode>,
-  TVariables = EndpointMethodParams<E, M>,
-  TContext = unknown,
->(
-  endpoint: E,
-  method: M,
-  options?: Omit<
-    UseMutationOptions<TResponse, TError, TVariables, TContext>,
-    "mutationFn" | "mutationKey"
-  >,
-): UseMutationResult<TResponse, TError, TVariables, TContext> =>
-  useRQMutation(
-    mutationOptions<E, M, TResponse, TError, TVariables, TContext>(
-      endpoint,
-      method,
-      options,
-    ),
-  );

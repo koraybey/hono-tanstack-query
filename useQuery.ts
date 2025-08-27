@@ -1,7 +1,5 @@
 /* eslint-disable functional/prefer-immutable-types */
 import {
-  type NoInfer,
-  type SkipToken,
   useQuery as useRQQuery,
   type UseQueryOptions,
   type UseQueryResult,
@@ -14,38 +12,33 @@ import {
   type EndpointMethodParams,
   type EndpointResponseType,
   type ErrorStatusCode,
-  type InferSelectReturnType,
   type QueryKey,
 } from "./types";
 import { getQueryKey } from "./utils";
 
-const queryOptions = <
+export const useQuery = <
   E extends Endpoint,
   M extends AvailableMethodKeys<E>,
   P extends EndpointMethodParams<E, M>,
-  O extends Omit<
-    UseQueryOptions<
-      TResponse,
-      TError,
-      InferSelectReturnType<TResponse, TError>,
-      QueryKey<E, M, P>
-    >,
-    "queryKey" | "queryFn"
-  >,
   TResponse = EndpointResponseType<E, M, SuccessStatusCode>,
   TError = EndpointResponseType<E, M, ErrorStatusCode>,
+  TData = TResponse,
 >(
   endpoint: E,
   method: M,
   params: P,
-  options?: O,
-) => {
+  options?: Omit<
+    UseQueryOptions<TResponse, TError, TData, QueryKey<E, M, P>>,
+    "queryKey" | "queryFn"
+  >,
+): UseQueryResult<TData, TError> => {
   const endpointFn = endpoint[method] as unknown as (
     params: unknown,
   ) => Promise<Response>;
-  return {
+
+  return useRQQuery({
     queryKey: getQueryKey(endpoint, method, params),
-    queryFn: async () => {
+    queryFn: async (): Promise<TResponse> => {
       const res = await endpointFn(params);
       if (res.status >= 200 && res.status < 300) {
         return (await res.json()) as TResponse;
@@ -64,55 +57,5 @@ const queryOptions = <
       throw error;
     },
     ...options,
-  } as NoInfer<
-    Omit<
-      UseQueryOptions<
-        TResponse,
-        TError,
-        InferSelectReturnType<TResponse, O["select"]>,
-        QueryKey<E, M, P>
-      >,
-      "queryFn"
-    > & {
-      queryFn: Exclude<
-        UseQueryOptions<
-          TResponse,
-          TError,
-          InferSelectReturnType<TResponse, O["select"]>,
-          QueryKey<E, M, P>
-        >["queryFn"],
-        SkipToken | undefined
-      >;
-    }
-  >;
+  });
 };
-
-export const useQuery = <
-  E extends Endpoint,
-  M extends AvailableMethodKeys<E>,
-  P extends EndpointMethodParams<E, M>,
-  O extends Omit<
-    UseQueryOptions<
-      TResponse,
-      TError,
-      InferSelectReturnType<TResponse, TError>,
-      QueryKey<E, M, P>
-    >,
-    "queryKey" | "queryFn"
-  >,
-  TResponse = EndpointResponseType<E, M, SuccessStatusCode>,
-  TError = EndpointResponseType<E, M, ErrorStatusCode>,
->(
-  endpoint: E & Endpoint,
-  method: M,
-  params: P,
-  options?: O,
-): UseQueryResult<InferSelectReturnType<TResponse, O["select"]>, TError> =>
-  useRQQuery(
-    queryOptions<E, M, P, O, TResponse, TError>(
-      endpoint,
-      method,
-      params,
-      options,
-    ),
-  );

@@ -45,12 +45,6 @@ export type EndpointMethodParams<
   M extends AvailableMethodKeys<E>,
 > = E[M] extends (params: infer P, ...args: any[]) => any ? P : never;
 
-export type InferSelectReturnType<TData, TSelect> = TSelect extends (
-  data: TData,
-) => infer R
-  ? R
-  : TData;
-
 export type QueryKey<
   E extends Endpoint,
   M extends AvailableMethodKeys<E>,
