@@ -1,9 +1,5 @@
-import {
-  type AvailableMethodKeys,
-  type EndpointMethodParams,
-  type MutationKey,
-  type QueryKey,
-} from "./types";
+import type * as types from "./types";
+import { type QueryKey } from "./types";
 
 const getPathFromUrl = (url: string): string => {
   try {
@@ -18,14 +14,14 @@ const getPathFromUrl = (url: string): string => {
 };
 
 export const getQueryKey = <
-  T extends object & { $url: () => URL | { toString: () => string } },
-  M extends AvailableMethodKeys<T>,
-  Params extends EndpointMethodParams<T, M>,
+  E extends types.Endpoint,
+  M extends types.AvailableMethodKeys<E>,
+  P extends types.EndpointMethodParams<E, M>,
 >(
-  endpoint: T,
+  endpoint: E,
   method: M,
-  params: Params,
-): QueryKey<T, M, Params> => {
+  params: P,
+) => {
   const urlString = endpoint.$url().toString();
   const path = getPathFromUrl(urlString);
 
@@ -36,26 +32,6 @@ export const getQueryKey = <
         ...("param" in params && { param: params.param }),
         ...("query" in params && { query: params.query }),
       }),
-  };
-  return [method, path, filteredParams] as unknown as QueryKey<T, M, Params>;
-};
-
-export const getMutationKey = <
-  T extends object & { $url: () => URL | { toString: () => string } },
-  M extends AvailableMethodKeys<T>,
->(
-  endpoint: T,
-  method: M,
-): MutationKey<T, M> => {
-  const urlString = endpoint.$url().toString();
-  const path = getPathFromUrl(urlString);
-  return [method, path];
-};
-
-export const jsonHandler = async <T>(req: Promise<Response>): Promise<T> => {
-  const res = await req;
-  if (res.status >= 200 && res.status < 300) {
-    return (await res.json()) as T;
-  }
-  throw new Error(`Request failed with status ${String(res.status)}`);
+  } as P;
+  return [method, path, filteredParams] as QueryKey<E, M, P>;
 };

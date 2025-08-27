@@ -1,86 +1,115 @@
+/* eslint-disable functional/prefer-immutable-types */
 import {
+  type NoInfer,
+  type SkipToken,
   useQuery as useRQQuery,
   type UseQueryOptions,
   type UseQueryResult,
 } from "@tanstack/react-query";
-import {
-  type ClientErrorStatusCode,
-  type ServerErrorStatusCode,
-  type SuccessStatusCode,
-} from "hono/utils/http-status";
+import { type SuccessStatusCode } from "hono/utils/http-status";
 
 import {
   type AvailableMethodKeys,
-  type EndpointMethodFn,
+  type Endpoint,
   type EndpointMethodParams,
   type EndpointResponseType,
+  type ErrorStatusCode,
+  type InferSelectReturnType,
   type QueryKey,
-  type WithResponseHandler,
 } from "./types";
-import { getQueryKey, jsonHandler } from "./utils";
+import { getQueryKey } from "./utils";
 
-export const queryOptions = <
-  T extends object & { $url: () => URL | { toString: () => string } },
-  M extends AvailableMethodKeys<T>,
-  Params extends EndpointMethodParams<T, M>,
-  TResponse = EndpointResponseType<T, M, SuccessStatusCode>,
-  TError = EndpointResponseType<
-    T,
-    M,
-    ClientErrorStatusCode | ServerErrorStatusCode
-  >,
-  TData = TResponse,
-  Options extends Omit<
-    UseQueryOptions<TResponse, TError, TData, QueryKey<T, M, Params>>,
-    "queryKey" | "queryFn"
-  > = Omit<
-    UseQueryOptions<TResponse, TError, TData, QueryKey<T, M, Params>>,
+const queryOptions = <
+  E extends Endpoint,
+  M extends AvailableMethodKeys<E>,
+  P extends EndpointMethodParams<E, M>,
+  O extends Omit<
+    UseQueryOptions<
+      TResponse,
+      TError,
+      InferSelectReturnType<TResponse, TError>,
+      QueryKey<E, M, P>
+    >,
     "queryKey" | "queryFn"
   >,
+  TResponse = EndpointResponseType<E, M, SuccessStatusCode>,
+  TError = EndpointResponseType<E, M, ErrorStatusCode>,
 >(
-  endpoint: T,
+  endpoint: E,
   method: M,
-  params: Params,
-  options?: Readonly<Options & WithResponseHandler<TResponse>>,
+  params: P,
+  options?: O,
 ) => {
-  const endpointFn = endpoint[method] as EndpointMethodFn<T, M>;
-
-  const { responseHandler, ...rqOptions } = (options ??
-    {}) as WithResponseHandler<TResponse> & Options;
-
+  const endpointFn = endpoint[method] as unknown as (
+    params: unknown,
+  ) => Promise<Response>;
   return {
     queryKey: getQueryKey(endpoint, method, params),
-    queryFn: async () =>
-      await (responseHandler ?? jsonHandler)(endpointFn(params)),
-    ...rqOptions,
-  };
+    queryFn: async () => {
+      const res = await endpointFn(params);
+      if (res.status >= 200 && res.status < 300) {
+        return (await res.json()) as TResponse;
+      }
+      const errorData = (await res.json()) as TError;
+      const error = Object.assign(
+        new Error(`Request failed with status ${String(res.status)}`),
+        {
+          status: res.status,
+          data: errorData,
+        },
+      ) as Error & {
+        status: number;
+        data: TError;
+      };
+      throw error;
+    },
+    ...options,
+  } as NoInfer<
+    Omit<
+      UseQueryOptions<
+        TResponse,
+        TError,
+        InferSelectReturnType<TResponse, O["select"]>,
+        QueryKey<E, M, P>
+      >,
+      "queryFn"
+    > & {
+      queryFn: Exclude<
+        UseQueryOptions<
+          TResponse,
+          TError,
+          InferSelectReturnType<TResponse, O["select"]>,
+          QueryKey<E, M, P>
+        >["queryFn"],
+        SkipToken | undefined
+      >;
+    }
+  >;
 };
 
 export const useQuery = <
-  T extends object & { $url: () => URL | { toString: () => string } },
-  M extends AvailableMethodKeys<T>,
-  Params extends EndpointMethodParams<T, M>,
-  TResponse = EndpointResponseType<T, M, SuccessStatusCode>,
-  TError = EndpointResponseType<
-    T,
-    M,
-    ClientErrorStatusCode | ServerErrorStatusCode
+  E extends Endpoint,
+  M extends AvailableMethodKeys<E>,
+  P extends EndpointMethodParams<E, M>,
+  O extends Omit<
+    UseQueryOptions<
+      TResponse,
+      TError,
+      InferSelectReturnType<TResponse, TError>,
+      QueryKey<E, M, P>
+    >,
+    "queryKey" | "queryFn"
   >,
-  TData = TResponse,
+  TResponse = EndpointResponseType<E, M, SuccessStatusCode>,
+  TError = EndpointResponseType<E, M, ErrorStatusCode>,
 >(
-  endpoint: T & { $url: () => URL | { toString: () => string } },
+  endpoint: E & Endpoint,
   method: M,
-  params: Params,
-  options?: Readonly<
-    Omit<
-      UseQueryOptions<TResponse, TError, TData, QueryKey<T, M, Params>>,
-      "queryKey" | "queryFn"
-    > &
-      WithResponseHandler<TResponse>
-  >,
-): UseQueryResult<TData, TError> =>
+  params: P,
+  options?: O,
+): UseQueryResult<InferSelectReturnType<TResponse, O["select"]>, TError> =>
   useRQQuery(
-    queryOptions<T, M, Params, TResponse, TError, TData>(
+    queryOptions<E, M, P, O, TResponse, TError>(
       endpoint,
       method,
       params,
