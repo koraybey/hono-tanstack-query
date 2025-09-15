@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable functional/prefer-immutable-types */
 import type { InferResponseType } from "hono/client";
 import type {

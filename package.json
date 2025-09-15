@@ -1,0 +1,44 @@
+{
+  "name": "hono-tanstack-query",
+  "version": "0.1.0",
+  "description": "Typed TanStack Query hooks for Hono RPC endpoints",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build:types": "tsc -p tsconfig.json",
+    "build:js:esm": "esbuild src/index.ts --bundle --format=esm --sourcemap --outfile=dist/index.mjs --platform=neutral --target=es2020",
+    "build:js:cjs": "esbuild src/index.ts --bundle --format=cjs --sourcemap --outfile=dist/index.cjs --platform=neutral --target=es2020",
+    "build": "pnpm build:types && pnpm build:js:esm && pnpm build:js:cjs",
+    "check": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.0.0",
+    "hono": "^4.0.0",
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@koraybey/eslint-config": "github:koraybey/eslint-config",
+    "esbuild": "^0.21.0",
+    "eslint": "^9.35.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@10.16.0"
+}
