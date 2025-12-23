@@ -1,42 +1,39 @@
-/* eslint-disable functional/prefer-immutable-types */
 import {
   useQuery as useRQQuery,
   type UseQueryOptions,
   type UseQueryResult,
 } from "@tanstack/react-query";
-import { type SuccessStatusCode } from "hono/utils/http-status";
+import { type InferRequestType, type InferResponseType } from "hono/client";
+import type { SuccessStatusCode } from "hono/utils/http-status";
 
-import {
-  type AvailableMethodKeys,
-  type Endpoint,
-  type EndpointMethodParams,
-  type EndpointResponseType,
-  type ErrorStatusCode,
-  type QueryKey,
-} from "./types";
-import { createEndpointFetcher, getQueryKey } from "./utils";
+import { type ClientMethod, type ErrorStatusCode } from "./types";
+import { createFetcher } from "./utils";
 
+/**
+ * Type-safe useQuery hook for Hono RPC client methods.
+ *
+ * @example
+ * ```ts
+ * const { data } = useQuery(
+ *   client.v2.menu[':locationId'].$get,
+ *   { param: { locationId }, query: { diningMode } },
+ *   { staleTime: 30_000 }
+ * )
+ * ```
+ */
 export const useQuery = <
-  E extends Endpoint,
-  M extends AvailableMethodKeys<E>,
-  P extends EndpointMethodParams<E, M>,
-  TResponse = EndpointResponseType<E, M, SuccessStatusCode>,
-  TError = EndpointResponseType<E, M, ErrorStatusCode>,
+  M extends ClientMethod,
+  TResponse = InferResponseType<M, SuccessStatusCode>,
+  TError = InferResponseType<M, ErrorStatusCode>,
   TData = TResponse,
 >(
-  endpoint: E,
   method: M,
-  params: P,
-  options?: Omit<
-    UseQueryOptions<TResponse, TError, TData, QueryKey<E, M, P>>,
-    "queryKey" | "queryFn"
-  >,
+  params: InferRequestType<M>,
+  // eslint-disable-next-line functional/prefer-immutable-types
+  options?: Omit<UseQueryOptions<TResponse, TError, TData>, "queryFn">,
 ): UseQueryResult<TData, TError> =>
   useRQQuery({
-    queryKey: getQueryKey(endpoint, method, params) as QueryKey<E, M, P>,
-    queryFn: async () =>
-      createEndpointFetcher<TResponse, P>(
-        endpoint[method] as (params: P) => Promise<Response>,
-      )(params),
+    queryKey: [params],
+    queryFn: async () => createFetcher<TResponse>(method)(params),
     ...options,
   });
